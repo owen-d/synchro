@@ -1,6 +1,5 @@
-// use std::error::Error;
-// use std::io::prelude::*;
 use std::process::{Command, Stdio, Child};
+use std::io::Read;
 use std::str;
 
 
@@ -19,49 +18,35 @@ fn run_from_args(arg_str: &str) -> Child {
 }
 
 // fn merge_processes() {}
+// fn to read bytes from stdout into a Vec
+// fn to peek @ a vec, either removing through a newline, or not modifying the vec
 
-fn main() {
-  let child = run_from_args("ls -l -h /tmp");
 
+fn stdout_as_str(child: Child,) -> String {
+  let mut stdout = child.stdout.unwrap();
+  let mut output: Vec<u8> = vec![];
+  //for some reason it seems the vec must be initialized with a value.
+  let mut buf = &mut vec![0];
+  let mut still_reading = true;
 
-  let output = child
-    .wait_with_output()
-    .expect("failed to wait on child");
+  while still_reading {
+    match stdout.read(buf) {
+      Ok(byte_ln) => {
+        if byte_ln > 0 {
+          output.extend(buf.iter());
+        } else {
+          still_reading = false;
+        }
+      }
+      Err(_) => {}
+    }
+  }
 
-  println!("{}", str::from_utf8(&output.stdout).expect("unable to unwrap"));
+  str::from_utf8(&output).unwrap().to_string()
 }
 
-// fn main() {
-//     // Spawn the `wc` command
-//     let process = match Command::new("wc")
-//                                 .stdin(Stdio::piped())
-//                                 .stdout(Stdio::piped())
-//                                 .spawn() {
-//         Err(why) => panic!("couldn't spawn wc: {}", why.description()),
-//         Ok(process) => process,
-//     };
-
-//     // Write a string to the `stdin` of `wc`.
-//     //
-//     // `stdin` has type `Option<ChildStdin>`, but since we know this instance
-//     // must have one, we can directly `unwrap` it.
-//     match process.stdin.unwrap().write_all(PANGRAM.as_bytes()) {
-//         Err(why) => panic!("couldn't write to wc stdin: {}",
-//                            why.description()),
-//         Ok(_) => println!("sent pangram to wc"),
-//     }
-
-//     // Because `stdin` does not live after the above calls, it is `drop`ed,
-//     // and the pipe is closed.
-//     //
-//     // This is very important, otherwise `wc` wouldn't start processing the
-//     // input we just sent.
-
-//     // The `stdout` field also has type `Option<ChildStdout>` so must be unwrapped.
-//     let mut s = String::new();
-//     match process.stdout.unwrap().read_to_string(&mut s) {
-//         Err(why) => panic!("couldn't read wc stdout: {}",
-//                            why.description()),
-//         Ok(_) => print!("wc responded with:\n{}", s),
-//     }
-// }
+fn main() {
+  let child = run_from_args("find /tmp/");
+  let output = stdout_as_str(child);
+  println!("{}", output);
+}

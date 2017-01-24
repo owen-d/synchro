@@ -17,9 +17,29 @@ fn run_from_args(arg_str: &str) -> Child {
     .expect("must provide a valid command")
 }
 
-// fn merge_processes() {}
-// fn to read bytes from stdout into a Vec
-// fn to peek @ a vec, either removing through a newline, or not modifying the vec
+fn spawn_cmd_in_thread(cmd: &str) -> String {
+  use std::sync::mpsc::{Sender, Receiver};
+  use std::sync::mpsc;
+  use std::thread;
+  let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
+  let thread_tx = tx.clone();
+  let moved_cmd = cmd.to_string();
+
+  thread::spawn(move || {
+    let child = run_from_args(&moved_cmd);
+    let res = stdout_as_str(child);
+    thread_tx.send(res).unwrap();
+  });
+
+  rx.recv().unwrap()
+}
+
+fn main() {
+  let cmd = "ls -lh /tmp";
+  let run_in_another_thread = spawn_cmd_in_thread(cmd);
+  println!("{}", run_in_another_thread);
+}
+
 
 
 fn stdout_as_str(child: Child,) -> String {
@@ -43,10 +63,4 @@ fn stdout_as_str(child: Child,) -> String {
   }
 
   str::from_utf8(&output).unwrap().to_string()
-}
-
-fn main() {
-  let child = run_from_args("find /tmp/");
-  let output = stdout_as_str(child);
-  println!("{}", output);
 }

@@ -1,19 +1,17 @@
-use std::process::{Child, ChildStdout};
+use std::process::{ChildStdout};
+use std::sync::mpsc::Sender;
 use std::io::Read;
-use std::iter::FromIterator;
 use std::str;
-use std::marker::Sized;
-
 
 pub struct LineCodec {
-  decoding_head: bool,
-  internal_buf: Vec<u8>,
-  stdout: ChildStdout
+  pub internal_buf: Vec<u8>,
+  pub stdout: ChildStdout,
+  pub handle: Sender<String>
 }
 
 impl LineCodec {
-  fn decode(&mut self) -> Option<String> {
-    let mut new_bytes: Vec<u8> = Vec::new();
+  pub fn decode(&mut self) -> Option<String> {
+    let mut new_bytes: Vec<u8> = vec![0; 1000];
     self.stdout.read(&mut new_bytes).unwrap();
     self.internal_buf.extend(new_bytes.iter());
     // Find the position of the next newline character
@@ -29,6 +27,7 @@ impl LineCodec {
     })
   }
 
-  fn flush(&mut self, handle: i32) {
+  pub fn flush(&mut self, msg: String) {
+    self.handle.send(msg).unwrap()
   }
 }

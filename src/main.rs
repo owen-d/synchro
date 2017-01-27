@@ -1,8 +1,9 @@
 mod my_stream;
 use std::process::{Command, Stdio, Child};
-use std::io::Read;
 use std::str;
-
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc;
+use std::thread;
 
 fn run_from_args(arg_str: &str) -> Child {
   let mut arg_iter = arg_str.split(" ");
@@ -18,50 +19,32 @@ fn run_from_args(arg_str: &str) -> Child {
     .expect("must provide a valid command")
 }
 
-fn spawn_cmd_in_thread(cmd: &str) -> String {
-  use std::sync::mpsc::{Sender, Receiver};
-  use std::sync::mpsc;
-  use std::thread;
+fn stream_from_thread(cmd: &str) {
+  let child = run_from_args(cmd);
   let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
   let thread_tx = tx.clone();
-  let moved_cmd = cmd.to_string();
+
 
   thread::spawn(move || {
-    let child = run_from_args(&moved_cmd);
-    let res = stdout_as_str(child);
-    thread_tx.send(res).unwrap();
+    let mut lc = my_stream::LineCodec {
+      internal_buf: Vec::new(),
+      stdout: child.stdout.unwrap(),
+      handle: thread_tx
+    };
+
+    loop {
+      lc.decode().map(|msg| lc.flush(msg));
+    }
   });
 
-  rx.recv().unwrap()
+  loop {
+    if let Ok(x) = rx.recv() {
+      println!("{}", x);
+    }
+  }
 }
 
 fn main() {
-  let cmd = "ls -lh /tmp";
-  let run_in_another_thread = spawn_cmd_in_thread(cmd);
-  println!("{}", run_in_another_thread);
-}
-
-
-
-fn stdout_as_str(child: Child,) -> String {
-  let mut stdout = child.stdout.unwrap();
-  let mut output: Vec<u8> = vec![];
-  //for some reason it seems the vec must be initialized with a value.
-  let mut buf = &mut vec![0];
-  let mut still_reading = true;
-
-  while still_reading {
-    match stdout.read(buf) {
-      Ok(byte_ln) => {
-        if byte_ln > 0 {
-          output.extend(buf.iter());
-        } else {
-          still_reading = false;
-        }
-      }
-      Err(_) => {}
-    }
-  }
-
-  str::from_utf8(&output).unwrap().to_string()
+  let cmd = "ping google.com";
+  stream_from_thread(cmd)
 }

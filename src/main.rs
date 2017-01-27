@@ -1,3 +1,4 @@
+mod my_stream;
 use std::process::{Command, Stdio, Child};
 use std::io::Read;
 use std::str;

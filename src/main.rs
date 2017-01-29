@@ -19,23 +19,25 @@ fn run_from_args(arg_str: &str) -> Child {
     .expect("must provide a valid command")
 }
 
-fn stream_from_thread(cmd: &str) {
-  let child = run_from_args(cmd);
+fn stream_from_thread(cmds: &Vec<&str>) {
   let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
-  let thread_tx = tx.clone();
 
+  for cmd in cmds {
+    let child = run_from_args(cmd);
+    let thread_tx = tx.clone();
+    thread::spawn(move || {
+      let mut lc = my_stream::LineCodec {
+        internal_buf: Vec::new(),
+        stdout: child.stdout.unwrap(),
+        handle: thread_tx
+      };
 
-  thread::spawn(move || {
-    let mut lc = my_stream::LineCodec {
-      internal_buf: Vec::new(),
-      stdout: child.stdout.unwrap(),
-      handle: thread_tx
-    };
+      loop {
+        lc.decode().map(|msg| lc.flush(msg));
+      }
+    });
 
-    loop {
-      lc.decode().map(|msg| lc.flush(msg));
-    }
-  });
+  };
 
   loop {
     if let Ok(x) = rx.recv() {
@@ -46,5 +48,7 @@ fn stream_from_thread(cmd: &str) {
 
 fn main() {
   let cmd = "ping google.com";
-  stream_from_thread(cmd)
+  let cmd2 = "http-server src/";
+  let cmds = vec![cmd, cmd2];
+  stream_from_thread(&cmds)
 }

@@ -11,7 +11,7 @@ pub struct LineCodec {
 
 impl LineCodec {
   pub fn decode(&mut self) -> Option<String> {
-    let mut new_bytes: Vec<u8> = vec![0; 1000];
+    let mut new_bytes: Vec<u8> = vec![0; 100];
     self.stdout.read(&mut new_bytes).unwrap();
     self.internal_buf.extend(new_bytes.iter());
     // Find the position of the next newline character
